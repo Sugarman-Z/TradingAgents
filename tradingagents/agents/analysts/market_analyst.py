@@ -6,6 +6,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_language_instruction,
     get_stock_data,
     get_verified_market_snapshot,
+    strip_final_proposal_prefix,
 )
 
 
@@ -85,7 +86,7 @@ Write a very detailed and nuanced report of the trends you observe. Provide spec
         report = ""
 
         if len(result.tool_calls) == 0:
-            report = result.content
+            report = strip_final_proposal_prefix(result.content)
 
         return {
             "messages": [result],

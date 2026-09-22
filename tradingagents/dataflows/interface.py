@@ -11,6 +11,23 @@ from .alpha_vantage import (
     get_news as get_alpha_vantage_news,
     get_stock as get_alpha_vantage_stock,
 )
+from .akshare_events import (
+    get_corporate_actions as get_akshare_corporate_actions,
+    get_earnings_calendar as get_akshare_earnings_calendar,
+    get_earnings_history as get_akshare_earnings_history,
+)
+from .akshare_news import get_news as get_akshare_news
+from .akshare_macro import get_macro_indicators as get_akshare_macro_indicators
+from .akshare_market import (
+    get_indicator as get_akshare_indicator,
+    get_stock as get_akshare_stock,
+)
+from .akshare_fundamentals import (
+    get_balance_sheet as get_akshare_balance_sheet,
+    get_cashflow as get_akshare_cashflow,
+    get_fundamentals as get_akshare_fundamentals,
+    get_income_statement as get_akshare_income_statement,
+)
 from .config import get_config
 from .errors import (
     NoMarketDataError,
@@ -18,6 +35,19 @@ from .errors import (
     VendorRateLimitError,
 )
 from .fred import get_macro_data as get_fred_macro_data
+from .local_vendor import (
+    get_balance_sheet as get_local_balance_sheet,
+    get_cashflow as get_local_cashflow,
+    get_fundamentals as get_local_fundamentals,
+    get_global_news as get_local_global_news,
+    get_income_statement as get_local_income_statement,
+    get_indicator as get_local_indicator,
+    get_insider_transactions as get_local_insider_transactions,
+    get_macro_indicators as get_local_macro_indicators,
+    get_news as get_local_news,
+    get_prediction_markets as get_local_prediction_markets,
+    get_stock as get_local_stock,
+)
 from .polymarket import get_prediction_markets as get_polymarket_prediction_markets
 from .y_finance import (
     get_balance_sheet as get_yfinance_balance_sheet,
@@ -74,6 +104,14 @@ TOOLS_CATEGORIES = {
         "tools": [
             "get_prediction_markets",
         ]
+    },
+    "event_data": {
+        "description": "A-share event data (earnings calendar, earnings history, corporate actions)",
+        "tools": [
+            "get_earnings_calendar",
+            "get_earnings_history",
+            "get_corporate_actions",
+        ]
     }
 }
 
@@ -82,64 +120,95 @@ VENDOR_LIST = [
     "fred",
     "polymarket",
     "alpha_vantage",
+    "local",
 ]
 
 # Optional enrichment categories. These add macro/event context to the news
-# analyst but are not core to a decision, so a vendor failure here degrades to a
-# sentinel instead of aborting the run (a bad LLM-supplied indicator, a missing
-# key, or a network blip should not crash an analysis over flavour data). Core
-# categories (prices, fundamentals, news) still raise so a broken primary is loud.
-OPTIONAL_CATEGORIES = {"macro_data", "prediction_markets"}
+# and event analysts but are not core to a decision, so a vendor failure here
+# degrades to a sentinel instead of aborting the run (a bad LLM-supplied
+# indicator, a missing key, or a network blip should not crash an analysis over
+# flavour data). Core categories (prices, fundamentals, news) still raise so a
+# broken primary is loud.
+OPTIONAL_CATEGORIES = {"macro_data", "prediction_markets", "event_data"}
 
 # Mapping of methods to their vendor-specific implementations
 VENDOR_METHODS = {
     # core_stock_apis
     "get_stock_data": {
         "alpha_vantage": get_alpha_vantage_stock,
+        "akshare": get_akshare_stock,
         "yfinance": get_YFin_data_online,
+        "local": get_local_stock,
     },
     # technical_indicators
     "get_indicators": {
         "alpha_vantage": get_alpha_vantage_indicator,
+        "akshare": get_akshare_indicator,
         "yfinance": get_stock_stats_indicators_window,
+        "local": get_local_indicator,
     },
     # fundamental_data
     "get_fundamentals": {
         "alpha_vantage": get_alpha_vantage_fundamentals,
+        "akshare": get_akshare_fundamentals,
         "yfinance": get_yfinance_fundamentals,
+        "local": get_local_fundamentals,
     },
     "get_balance_sheet": {
         "alpha_vantage": get_alpha_vantage_balance_sheet,
+        "akshare": get_akshare_balance_sheet,
         "yfinance": get_yfinance_balance_sheet,
+        "local": get_local_balance_sheet,
     },
     "get_cashflow": {
         "alpha_vantage": get_alpha_vantage_cashflow,
+        "akshare": get_akshare_cashflow,
         "yfinance": get_yfinance_cashflow,
+        "local": get_local_cashflow,
     },
     "get_income_statement": {
         "alpha_vantage": get_alpha_vantage_income_statement,
+        "akshare": get_akshare_income_statement,
         "yfinance": get_yfinance_income_statement,
+        "local": get_local_income_statement,
     },
     # news_data
     "get_news": {
         "alpha_vantage": get_alpha_vantage_news,
+        "akshare": get_akshare_news,
         "yfinance": get_news_yfinance,
+        "local": get_local_news,
     },
     "get_global_news": {
         "yfinance": get_global_news_yfinance,
         "alpha_vantage": get_alpha_vantage_global_news,
+        "local": get_local_global_news,
     },
     "get_insider_transactions": {
         "alpha_vantage": get_alpha_vantage_insider_transactions,
         "yfinance": get_yfinance_insider_transactions,
+        "local": get_local_insider_transactions,
     },
     # macro_data
     "get_macro_indicators": {
         "fred": get_fred_macro_data,
+        "akshare": get_akshare_macro_indicators,
+        "local": get_local_macro_indicators,
     },
     # prediction_markets
     "get_prediction_markets": {
         "polymarket": get_polymarket_prediction_markets,
+        "local": get_local_prediction_markets,
+    },
+    # event_data
+    "get_earnings_calendar": {
+        "akshare": get_akshare_earnings_calendar,
+    },
+    "get_earnings_history": {
+        "akshare": get_akshare_earnings_history,
+    },
+    "get_corporate_actions": {
+        "akshare": get_akshare_corporate_actions,
     },
 }
 

@@ -168,6 +168,16 @@ _PASSTHROUGH_KWARGS = (
     "api_key", "callbacks", "http_client", "http_async_client",
 )
 
+# Hard ceiling on a single LLM HTTP request. Left unset, the openai SDK's
+# implicit defaults governed the request: a 600s read timeout (5s connect)
+# compounded by its retry budget — a wedged gateway connection stalled a run
+# for ten-plus minutes while the native socket read on Windows even ignored
+# Ctrl+C, with a ceiling nobody had ever chosen. 300s makes the bound an
+# explicit, overridable decision and still covers long thinking-mode
+# generations; a genuinely wedged connection raises instead and the SDK's
+# retry budget takes over.
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 300
+
 # OpenAI's ``reasoning_effort`` is only accepted by reasoning models — the GPT-5
 # family and the o-series. Non-reasoning models (gpt-4.1, gpt-4o, ...) 400 with
 # "Unsupported parameter: 'reasoning.effort' is not supported with this model".
@@ -328,6 +338,10 @@ class OpenAIClient(BaseLLMClient):
             if key == "reasoning_effort" and not _supports_reasoning_effort(self.model):
                 continue
             llm_kwargs[key] = self.kwargs[key]
+
+        # A stalled LLM connection must self-heal (see
+        # DEFAULT_REQUEST_TIMEOUT_SECONDS); an explicit timeout wins.
+        llm_kwargs.setdefault("timeout", DEFAULT_REQUEST_TIMEOUT_SECONDS)
 
         # The subclass (provider quirks) comes from the registry spec.
         return chat_cls(**llm_kwargs)
