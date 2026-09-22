@@ -22,7 +22,7 @@ from tradingagents.agents.utils.agent_utils import opponent_argument_or_opening
 _REPORTS = {
     "company_of_interest": "AAPL", "asset_type": "stock",
     "market_report": "m", "sentiment_report": "s",
-    "news_report": "n", "fundamentals_report": "f",
+    "news_report": "n", "fundamentals_report": "f", "events_report": "e",
 }
 
 

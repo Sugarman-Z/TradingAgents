@@ -131,18 +131,31 @@ DEFAULT_CONFIG = _apply_env_overrides({
         "ECB Bank of England BOJ central bank policy",
         "oil commodities supply chain energy",
     ],
+    # Local-file A-share data (dataflows/local_vendor.py): per-symbol
+    # CSV/Parquet files of back-adjusted daily OHLCV, named by Yahoo-style
+    # code (e.g. 600519.SS.csv). Override with TRADINGAGENTS_LOCAL_DATA_DIR.
+    "local_data_dir": os.getenv(
+        "TRADINGAGENTS_LOCAL_DATA_DIR",
+        os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "data", "a_share",
+        ),
+    ),
     # Data vendor configuration
     # Category-level configuration (default for all tools in category).
     # The configured value is the exact vendor chain — requests are NOT silently
     # routed to vendors you didn't choose. For ordered fallback, list several,
     # e.g. "yfinance,alpha_vantage". "default" uses all available vendors.
     "data_vendors": {
-        "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
-        "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
-        "fundamental_data": "yfinance",      # Options: alpha_vantage, yfinance
-        "news_data": "yfinance",             # Options: alpha_vantage, yfinance
-        "macro_data": "fred",                # Options: fred (needs FRED_API_KEY)
+        # local hfq files first, akshare (eastmoney) when no local file exists.
+        # Also available: alpha_vantage, yfinance (unreachable from mainland China).
+        "core_stock_apis": "local,akshare",
+        "technical_indicators": "local,akshare",
+        "fundamental_data": "yfinance",      # Options: alpha_vantage, akshare (A-share), local, yfinance
+        "news_data": "yfinance",             # Options: alpha_vantage, akshare (A-share), local, yfinance
+        "macro_data": "fred",                # Options: fred (needs FRED_API_KEY), akshare (China NBS/PBOC), local
         "prediction_markets": "polymarket",  # Options: polymarket (keyless)
+        "event_data": "akshare",             # Options: akshare (keyless, A-share event data)
     },
     # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {

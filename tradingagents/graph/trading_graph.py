@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import yfinance as yf
 from langgraph.prebuilt import ToolNode
 
 # Import the abstract tool methods from agent_utils
@@ -27,6 +26,9 @@ from tradingagents.agents.utils.agent_utils import (
     get_stock_data,
     get_verified_market_snapshot,
     resolve_instrument_identity,
+    get_corporate_actions,
+    get_earnings_calendar,
+    get_earnings_history
 )
 from tradingagents.agents.utils.memory import TradingMemoryLog
 from tradingagents.dataflows.config import set_config
@@ -81,7 +83,7 @@ class TradingAgentsGraph:
 
     def __init__(
         self,
-        selected_analysts=("market", "social", "news", "fundamentals"),
+        selected_analysts=("market", "social", "news", "fundamentals", "events"),
         debug=False,
         config: dict[str, Any] = None,
         callbacks: list | None = None,
@@ -143,6 +145,7 @@ class TradingAgentsGraph:
             self.deep_thinking_llm,
             self.tool_nodes,
             self.conditional_logic,
+            debug=self.debug,
         )
 
         self.propagator = Propagator(
@@ -247,6 +250,14 @@ class TradingAgentsGraph:
                     get_income_statement,
                 ]
             ),
+            "events": ToolNode(
+                [
+                    # Events analysis tools
+                    get_earnings_calendar,
+                    get_earnings_history,
+                    get_corporate_actions,
+                ]
+            )
         }
 
     def _resolve_benchmark(self, ticker: str) -> str:
@@ -284,6 +295,7 @@ class TradingAgentsGraph:
         the full holding window has not traded (#1169), or the symbol is delisted
         or unreachable.
         """
+        from tradingagents.dataflows.ohlcv_loader import load_configured_ohlcv
         from tradingagents.dataflows.symbol_utils import normalize_symbol
 
         try:
@@ -293,9 +305,16 @@ class TradingAgentsGraph:
 
             # Normalize so the realized-return lookup hits the same instrument
             # the analysis priced (e.g. XAUUSD -> GC=F) (#984). The benchmark is
-            # already a canonical Yahoo symbol from ``_resolve_benchmark``.
-            stock = yf.Ticker(normalize_symbol(ticker)).history(start=trade_date, end=end_str)
-            bench = yf.Ticker(benchmark).history(start=trade_date, end=end_str)
+            # already canonical from ``_resolve_benchmark``. Both series come
+            # from the configured core_stock_apis chain — the yf.Ticker call
+            # this replaced was hardwired to Yahoo, so every A-share run
+            # (Yahoo unreachable) failed the lookup and pending entries never
+            # settled. Both ends of the window are inclusive: iloc[0] is the
+            # first bar on/after trade_date, iloc[holding_days] the outcome bar.
+            stock = load_configured_ohlcv(normalize_symbol(ticker), end_str)
+            bench = load_configured_ohlcv(benchmark, end_str)
+            stock = stock[(stock["Date"] >= start) & (stock["Date"] <= end)]
+            bench = bench[(bench["Date"] >= start) & (bench["Date"] <= end)]
 
             # Require the full holding window in both series. A rerun before it
             # has traded leaves the entry pending to retry next run, rather than
@@ -314,7 +333,7 @@ class TradingAgentsGraph:
             alpha = raw - bench_ret
             # The date of the last price bar used is when this outcome became
             # known — the point-in-time cutoff for injecting the lesson (#1251).
-            resolution_date = stock.index[holding_days].strftime("%Y-%m-%d")
+            resolution_date = stock["Date"].iloc[holding_days].strftime("%Y-%m-%d")
             return raw, alpha, holding_days, resolution_date
         except Exception as e:
             logger.warning(
@@ -582,6 +601,7 @@ class TradingAgentsGraph:
             "sentiment_report": final_state["sentiment_report"],
             "news_report": final_state["news_report"],
             "fundamentals_report": final_state["fundamentals_report"],
+            "events_report": final_state["events_report"],
             "investment_debate_state": {
                 "bull_history": final_state["investment_debate_state"]["bull_history"],
                 "bear_history": final_state["investment_debate_state"]["bear_history"],

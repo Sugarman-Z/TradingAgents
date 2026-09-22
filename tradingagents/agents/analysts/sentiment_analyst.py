@@ -34,6 +34,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_instrument_context_from_state,
     get_language_instruction,
     get_news,
+    strip_final_proposal_prefix,
 )
 from tradingagents.agents.utils.structured import (
     NO_EXTERNAL_TOOLS,
@@ -118,6 +119,7 @@ def create_sentiment_analyst(llm):
             render_sentiment_report,
             "Sentiment Analyst",
         )
+        report_text = strip_final_proposal_prefix(report_text)
 
         return {
             "messages": [AIMessage(content=report_text)],

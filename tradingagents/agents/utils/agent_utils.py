@@ -1,5 +1,7 @@
 import functools
 import logging
+import re
+
 from collections.abc import Mapping
 from typing import Any
 
@@ -8,6 +10,11 @@ from langchain_core.messages import HumanMessage, RemoveMessage
 
 # Import tools from separate utility files
 from tradingagents.agents.utils.core_stock_tools import get_stock_data
+from tradingagents.agents.utils.event_data_tools import (
+    get_corporate_actions,
+    get_earnings_calendar,
+    get_earnings_history,
+)
 from tradingagents.agents.utils.fundamental_data_tools import (
     get_balance_sheet,
     get_cashflow,
@@ -39,12 +46,32 @@ __all__ = [
     "get_macro_indicators",
     "get_prediction_markets",
     "get_verified_market_snapshot",
+    "get_earnings_calendar",
+    "get_earnings_history",
+    "get_corporate_actions",
     "build_instrument_context",
     "resolve_instrument_identity",
     "get_instrument_context_from_state",
     "get_language_instruction",
     "create_msg_delete",
+    "strip_final_proposal_prefix",
 ]
+
+# The shared analyst boilerplate invites every analyst to prefix its final
+# message with "FINAL TRANSACTION PROPOSAL: **X**" — team protocol, not report
+# content. Saved reports should carry the analysis only, so the leading line
+# is stripped when the report is captured.
+_FINAL_PROPOSAL_PREFIX_RE = re.compile(
+    r"^\s*FINAL TRANSACTION PROPOSAL:\s*\*{0,2}[A-Za-z/]+\*{0,2}\s*(?:\n+|$)",
+    re.IGNORECASE,
+)
+
+
+def strip_final_proposal_prefix(text: str) -> str:
+    """Drop a leading proposal-protocol line from an analyst report."""
+    if not text:
+        return text
+    return _FINAL_PROPOSAL_PREFIX_RE.sub("", text, count=1)
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +134,13 @@ def resolve_instrument_identity(ticker: str) -> dict:
     The symbol is normalized first (e.g. ``XAUUSD`` -> ``GC=F``) so identity
     resolves for the same instrument the price path actually fetches (#983).
     """
+    # A-share tickers (.SS/.SZ/.BJ) have no Yahoo coverage on a mainland
+    # network — the lookup would only burn its retry budget on DNS timeouts
+    # before landing on the best-effort {} fallback anyway. Fail fast to
+    # ticker-only context.
+    if ticker.upper().endswith((".SS", ".SZ", ".BJ")):
+        return {}
+
     from tradingagents.dataflows.symbol_utils import normalize_symbol
 
     try:
